@@ -10,7 +10,7 @@ source:
   sha256: 37bb33d7af6b86477ed4cdea5e9a4015d8f120a632885c2ebf38f3b5c9699aba
 
 build:
-  skip: true  # [py<=38]
+  skip: true  # [py<312]
   script: {{ PYTHON }} -m pip install . -vv
   number: 0
 
@@ -19,12 +19,12 @@ requirements:
     - {{ compiler('c') }}
     - {{ stdlib("c") }}
   host:
-    - numpy >=1.23.5
+    - numpy >=2.1
     - pip
     - python
     - setuptools >=18.0
   run:
-    - {{ pin_compatible('numpy') }}
+    - numpy >=2.1
     - python
 
 test:

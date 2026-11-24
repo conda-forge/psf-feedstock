@@ -48,14 +48,13 @@ MICROMAMBA_TMPDIR=$(mktemp -d)
 MICROMAMBA_EXE=${MICROMAMBA_TMPDIR}/micromamba
 
 echo "Downloading micromamba ${MICROMAMBA_VERSION}"
-curl --fail --retry 5 --retry-delay 5 -L -o "${MICROMAMBA_EXE}" "${MICROMAMBA_URL}"
-echo "${MICROMAMBA_SHA256} *${MICROMAMBA_EXE}" | shasum -a 256 -c
-chmod +x "${MICROMAMBA_EXE}"
-
-echo Creating environment
-"${MICROMAMBA_EXE}" create --yes --root-prefix "${MAMBA_ROOT_PREFIX}" --prefix "${MINIFORGE_HOME}" \
-    --override-channels --channel conda-forge --strict-channel-priority \
-    pip python=3.14 conda-build conda-forge-ci-setup=4 "conda-build>=26.3"
+micromamba_exe="$(mktemp -d)/micromamba"
+curl -L -o "${micromamba_exe}" "${MICROMAMBA_URL}"
+chmod +x "${micromamba_exe}"
+echo "Creating environment"
+"${micromamba_exe}" create --yes --root-prefix "${MAMBA_ROOT_PREFIX}" --prefix "${MINIFORGE_HOME}" \
+  --channel conda-forge \
+  pip python=3.12 conda-build conda-forge-ci-setup=4 "conda-build>=26.3"
 echo "Moving pkgs cache from ${MAMBA_ROOT_PREFIX} to ${MINIFORGE_HOME}"
 mv "${MAMBA_ROOT_PREFIX}/pkgs" "${MINIFORGE_HOME}"
 
@@ -98,25 +97,25 @@ if [[ "${sha:-}" == "" ]]; then
 fi
 
 if [[ "${OSX_SDK_DIR:-}" == "" ]]; then
-    if [[ "${CI:-}" == "" ]]; then
-        echo "Please set OSX_SDK_DIR to a directory where SDKs can be downloaded to. Aborting"
-        exit 1
-    else
-        export OSX_SDK_DIR=/opt/conda-sdks
-        /usr/bin/sudo mkdir -p "${OSX_SDK_DIR}"
-        /usr/bin/sudo chown "${USER}" "${OSX_SDK_DIR}"
-    fi
+  if [[ "${CI:-}" == "" ]]; then
+    echo "Please set OSX_SDK_DIR to a directory where SDKs can be downloaded to. Aborting"
+    exit 1
+  else
+    export OSX_SDK_DIR=/opt/conda-sdks
+    /usr/bin/sudo mkdir -p "${OSX_SDK_DIR}"
+    /usr/bin/sudo chown "${USER}" "${OSX_SDK_DIR}"
+  fi
 else
-    if tmpf=$(mktemp "$OSX_SDK_DIR"/tmp.XXXXXXXX 2>/dev/null); then
-        rm -f "$tmpf"
-        echo "OSX_SDK_DIR is writeable without sudo, continuing"
-    else
-        echo "User-provided OSX_SDK_DIR is not writeable for current user! Aborting"
-        exit 1
-    fi
+  if tmpf=$(mktemp "$OSX_SDK_DIR"/tmp.XXXXXXXX 2>/dev/null); then
+      rm -f "$tmpf"
+      echo "OSX_SDK_DIR is writeable without sudo, continuing"
+  else
+      echo "User-provided OSX_SDK_DIR is not writeable for current user! Aborting"
+      exit 1
+  fi
 fi
 
-echo Running build setup
+echo -e "\n\nRunning the build setup script."
 source run_conda_forge_build_setup
 
 
@@ -131,15 +130,10 @@ if [[ -f "${FEEDSTOCK_ROOT}/LICENSE.txt" ]]; then
 fi
 
 if [[ "${BUILD_WITH_CONDA_DEBUG:-0}" == 1 ]]; then
-    # differences between conda-build vs. rattler-build
-    #   - 1 step (conda debug + manually open shell) vs. 2 step (rb debug {setup, shell})
-    #   - recipe is positional vs. --recipe "${RECIPE_ROOT}"
-    #   - --output-id vs. --output-name
-    #   - --clobber-file vs. none
-    #   - none vs. --target-platform
-    CONDA_SUBDIR="${BUILD_PLATFORM}" conda debug \
-        "${RECIPE_ROOT}" \
-        -m "${CONFIG_FILE}" \
+    if [[ "x${BUILD_OUTPUT_ID:-}" != "x" ]]; then
+        EXTRA_CB_OPTIONS="${EXTRA_CB_OPTIONS:-} --output-id ${BUILD_OUTPUT_ID}"
+    fi
+    CONDA_SUBDIR="${BUILD_PLATFORM}" conda debug ./recipe -m ./.ci_support/${CONFIG}.yaml \
         ${EXTRA_CB_OPTIONS:-} \
         ${BUILD_OUTPUT_ID:+--output-id "${BUILD_OUTPUT_ID}"} \
         --clobber-file "${CI_SUPPORT}/clobber_${CONFIG}.yaml"
@@ -148,8 +142,10 @@ if [[ "${BUILD_WITH_CONDA_DEBUG:-0}" == 1 ]]; then
     /bin/bash
 fi
 
-# Build the recipe
-echo Building recipe
+    CONDA_SUBDIR="${BUILD_PLATFORM}" conda-build ./recipe -m ./.ci_support/${CONFIG}.yaml \
+        --suppress-variables ${EXTRA_CB_OPTIONS:-} \
+        --clobber-file ./.ci_support/clobber_${CONFIG}.yaml \
+        --extra-meta flow_run_id="$flow_run_id" remote_url="$remote_url" sha="$sha"
 
 # differences between conda-build vs. rattler-build
 #   - recipe is positional vs. --recipe "${RECIPE_ROOT}"

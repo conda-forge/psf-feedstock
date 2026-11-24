@@ -89,9 +89,9 @@ VOLUME_SUFFIX=",z"
 
 # Podman-specific handling
 if [ "${DOCKER_EXECUTABLE}" = "podman" ]; then
-    # Fix file permissions for rootless podman builds. In addition to `recipe/`
-    # and `build_artifacts`, `.scripts` also needs to be available in the container.
-    podman unshare chown -R ${HOST_USER_ID}:${HOST_USER_ID} "${FEEDSTOCK_ROOT}"
+    # Fix file permissions for rootless podman builds
+    podman unshare chown -R ${HOST_USER_ID}:${HOST_USER_ID} "${ARTIFACTS}"
+    podman unshare chown -R ${HOST_USER_ID}:${HOST_USER_ID} "${RECIPE_ROOT}"
 
     # Add SELinux label only if enforcing
     if command -v getenforce &>/dev/null && [ "$(getenforce)" = "Enforcing" ]; then
@@ -115,7 +115,7 @@ fi
 export UPLOAD_PACKAGES="${UPLOAD_PACKAGES:-True}"
 export IS_PR_BUILD="${IS_PR_BUILD:-False}"
 
-${DOCKER_EXECUTABLE} pull --platform ${DOCKER_PLATFORM} "${DOCKER_IMAGE}"
+${DOCKER_EXECUTABLE} pull "${DOCKER_IMAGE}"
 
 ${DOCKER_EXECUTABLE} run ${DOCKER_RUN_ARGS} \
            -v "${RECIPE_ROOT}":/home/conda/recipe_root:rw${VOLUME_SUFFIX},delegated \
