@@ -19,10 +19,10 @@ requirements:
     - {{ compiler('c') }}
     - {{ stdlib("c") }}
   host:
-    - numpy >=2.1
+    - numpy >2.1
     - pip
     - python
-    - setuptools >=18.0
+    - setuptools
   run:
     - numpy >=2.1
     - python
